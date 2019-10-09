@@ -35,25 +35,22 @@ class can_mtlt:
         self.hw_bit_msg_queue = Queue()
         self.sw_bit_msg_queue = Queue()
         self.sensor_status_msg_queue = Queue()
-        self.gps_position = {
-            "long":0,
-            "lat":0
-        }
-        self.gps_direction = {
-            "compassBearing":0,
-            "navSpeed":0,
-            "pitch":0,
-            "altitude":0
-        }
-        self.gps_wheel_speed = {
-            "frontAxleSpeed":0,
-            "relSpeedFrontAxleLeftWheel":0,
-            "relSpeedFrontAxleRightWheel":0,
-            "relSpeedRearAxle1LeftWheel":0,
-            "relSpeedRearAxle1RigthWheel":0,
-            "relSpeedRearAxle2LeftWheel":0,
-            "relSpeedRearAxle2RigthWheel":0
-        }
+
+        # self.gps_direction = {
+        #     "compassBearing":0,
+        #     "navSpeed":0,
+        #     "pitch":0,
+        #     "altitude":0
+        # }
+        # self.gps_wheel_speed = {
+        #     "frontAxleSpeed":0,
+        #     "relSpeedFrontAxleLeftWheel":0,
+        #     "relSpeedFrontAxleRightWheel":0,
+        #     "relSpeedRearAxle1LeftWheel":0,
+        #     "relSpeedRearAxle1RigthWheel":0,
+        #     "relSpeedRearAxle2LeftWheel":0,
+        #     "relSpeedRearAxle2RigthWheel":0
+        # }
         self.pdu_dict = {
             "time_stamp":0,
             "id":0x0000,
@@ -73,8 +70,8 @@ class can_mtlt:
         roll = roll_uint * (1/32768) - 250.0
 
         #to be done
-        self.gps_direction["pitch"] = pitch
-        self.gps_direction["altitude"] = roll
+        # self.gps_direction["pitch"] = pitch
+        # self.gps_direction["altitude"] = roll
         # still need to figure out how to get compass bearing and navspeed
 
         print('Time: {2:18.6f} Roll: {0:6.2f} Pitch: {1:6.2f}'.format(roll,pitch,msg.timestamp))
@@ -102,14 +99,14 @@ class can_mtlt:
             f.write('WX  : {0:6.2f} WY   : {1:6.2f} WZ: {2:6.2f}'.format(wx,wy,wz) + "\n")
 
  #to be finished
-    def gps_position(self,msg):
-        session = gps.gps("localhost", "2947")
-        session.stream(gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE)
-        rep = session.next()
-
-        if (rep["class"] == "TPV") :
-            self.gps_position['lat'] = rep.lat
-            self.gps_position['long'] = rep.long
+    # def gps_position(self,msg):
+    #     session = gps.gps("localhost", "2947")
+    #     session.stream(gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE)
+    #     rep = session.next()
+    #
+    #     if (rep["class"] == "TPV") :
+    #         self.gps_position['lat'] = rep.lat
+    #         self.gps_position['long'] = rep.long
 
     def start_record(self):
         self.thread_put.start()
@@ -168,9 +165,9 @@ class can_mtlt:
                 print(msg_read, "\n")
 
             #to be finished
-            if self.gps_position["lat"] > 0:
-                data = [elf.gps_position["lat"],elf.gps_position["long"]]
-                my_can.send_msg(0x18FEF300,data)
+            # if self.gps_position["lat"] > 0:
+            #     data = [elf.gps_position["lat"],elf.gps_position["long"]]
+            #     my_can.send_msg(0x18FEF300,data)
 
     def put_msg(self):
         while (True):
@@ -293,6 +290,28 @@ class can_mtlt:
         msg_dict = self.pdu_dict
         return msg_dict
 
+    def read_gps(self):
+        session = gps.gps("localhost", "2947")
+        session.stream(gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE)
+
+        while True:
+            rep = session.next()
+            # print(test_gps)
+            try :
+                if (rep["class"] == "TPV") :
+                    # print(rep)
+                    lat = int(rep.lat + 210)
+                    lon = int(rep.lon + 210)
+                    data = [lat, lon]
+                    my_can.send_msg(0x18FEF300,data)
+                    msg_read = self.can0.recv()
+
+                 	# print(str(rep.lat) + "," + str(rep.lon))
+
+            except Exception as e :
+                print("Got exception " + str(e))
+
+
 if __name__ == "__main__":
     my_can = can_mtlt('can0', 'socketcan_ctypes')
 
@@ -311,7 +330,7 @@ if __name__ == "__main__":
     # my.set_pkt_type(7)
     # my_can.set_lpf_filter(25,5)
     # my_can.set_orientation(9)
-
+    my_can.read_gps()
     # time.sleep(0.5)
 
     #print and save messages of slope, acc, rate
