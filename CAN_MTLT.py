@@ -4,7 +4,7 @@ mtlt products(MTLT305D and 300RI included now) CAN Bus read and send message mod
 Requires PI3B and CAN_HAT(shopping link: https://m.tb.cn/h.eRtgNe2)
 with H/L of CAN_HAT connected with H/L from sensor side
 only store the angle, acc, rate to can_data.txt
-@author: cek
+@author: cek,@tejas_pashte
 '''
 
 # follow http://www.waveshare.net/wiki/RS485_CAN_HAT
@@ -16,6 +16,7 @@ import time
 import threading
 import binascii
 import gps
+import struct
 import requests
 if sys.version_info[0] > 2:
     from queue import Queue
@@ -290,23 +291,52 @@ class can_mtlt:
         msg_dict = self.pdu_dict
         return msg_dict
 
+    def int2Hex(self,num,n):
+        OFFSET = 1 << 32
+        MASK = OFFSET - 1
+        hex = '%08x' % (num + OFFSET & MASK)
+        print(hex)
+        bytes = []
+
+        for i in range(n, 4):
+            temp = '0x' + hex[i * 2: i * 2 + 2]
+            bytes.insert(0,int(temp,16))
+
+        return bytes[::]
+
     def read_gps(self):
         session = gps.gps("localhost", "2947")
         session.stream(gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE)
 
         while True:
             rep = session.next()
-            # print(test_gps)
+
             try :
                 if (rep["class"] == "TPV") :
-                    # print(rep)
-                    lat = int(rep.lat + 210)
-                    lon = int(rep.lon + 210)
-                    data = [lat, lon]
-                    my_can.send_msg(0x18FEF300,data)
-                    msg_read = self.can0.recv()
+                    # params for 65257 packet
+                    lat = int((rep.lat + 210) * 1000000)
+                    lon = int((rep.lon + 210) * 1000000)
 
-                 	# print(str(rep.lat) + "," + str(rep.lon))
+                    #params for 65256 packet
+                    #conversions according to j1939 excel
+                    alt = int((rep.alt + 2500) / 0.125)
+                    pitch = 0
+                    speed = int(rep.speed * 256)
+                    heading = int(rep.track * 128)
+
+                    strHeading = self.int2Hex(heading,2)
+                    strSpeed = self.int2Hex(speed,2)
+                    strPitch = self.int2Hex(pitch,2)
+                    strAlt = self.int2Hex(alt,2)
+                    vehicle_pos = strHeading + strSpeed + strPitch + strAlt
+
+                    strLat = self.int2Hex(lat,0)
+                    strLong = self.int2Hex(lon,0)
+                    data = strLong + strLat
+                    vehicle_gps = strLat + strLong
+
+                    my_can.send_msg(0x18FEF380,vehicle_gps)
+                    my_can.send_msg(0x18FEE880,vehicle_pos)
 
             except Exception as e :
                 print("Got exception " + str(e))
@@ -325,7 +355,7 @@ if __name__ == "__main__":
     #set messages
     # my_can.save_configuration()
     # my_can.reset_algorithm()
-    my_can.set_odr(1)
+    # my_can.set_odr(1)
     # my_can.mag_alignment_start()
     # my.set_pkt_type(7)
     # my_can.set_lpf_filter(25,5)
@@ -334,4 +364,4 @@ if __name__ == "__main__":
     # time.sleep(0.5)
 
     #print and save messages of slope, acc, rate
-    my_can.start_record()
+    # my_can.start_record()
