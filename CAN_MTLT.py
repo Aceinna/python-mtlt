@@ -4,7 +4,7 @@ mtlt products(MTLT305D and 300RI included now) CAN Bus read and send message mod
 Requires PI3B and CAN_HAT(shopping link: https://m.tb.cn/h.eRtgNe2)
 with H/L of CAN_HAT connected with H/L from sensor side
 only store the angle, acc, rate to can_data.txt
-@author: cek,@tejas_pashte
+@author: cek
 '''
 
 # follow http://www.waveshare.net/wiki/RS485_CAN_HAT
@@ -312,6 +312,22 @@ class can_mtlt:
             rep = session.next()
 
             try :
+                # 64502
+                if (rep["class"] == "SKY"):
+                    hDop = int(rep.hdop * 10)
+                    vDop = int(rep.vdop * 10)
+                    pDop = int(rep.pdop * 10)
+                    tDop = int(rep.tdop * 10)
+                    rsvd1 = 0
+                    rsvd2 = 0
+                    rsdv3= 0
+                    sat_num = len(rep.satellites)
+
+                    dilution_val = [sat_num,hDop,vDop,pDop,tDop]
+                    print(dilution_val)
+                    my_can.send_msg(0x18FBF680,dilution_val)
+
+
                 if (rep["class"] == "TPV") :
                     # params for 65257 packet
                     lat = int((rep.lat + 210) * 1000000)
@@ -328,6 +344,7 @@ class can_mtlt:
                     strSpeed = self.int2Hex(speed,2)
                     strPitch = self.int2Hex(pitch,2)
                     strAlt = self.int2Hex(alt,2)
+
                     vehicle_pos = strHeading + strSpeed + strPitch + strAlt
 
                     strLat = self.int2Hex(lat,0)
@@ -335,6 +352,8 @@ class can_mtlt:
                     data = strLong + strLat
                     vehicle_gps = strLat + strLong
 
+                    print(vehicle_gps)
+                    print(vehicle_pos)
                     my_can.send_msg(0x18FEF380,vehicle_gps)
                     my_can.send_msg(0x18FEE880,vehicle_pos)
 
