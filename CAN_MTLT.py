@@ -22,7 +22,16 @@ import csv
 import datetime
 import gnsscal
 import serial
+import subprocess, signal
 from ubx import UbxStream
+
+from azure.storage.blob import AppendBlobService
+from azure.storage.blob import ContentSettings
+from azure.storage.blob import BlockBlobService
+
+from pymongo import MongoClient
+from dotenv import load_dotenv
+load_dotenv()
 # import ubx
 
 if sys.version_info[0] > 2:
@@ -39,9 +48,17 @@ class can_mtlt:
         self.writer = ""
 
         fields = ["timeITOW","time","roll","pitch","xRate","yRate","zRate","xAccel","yAccel","zAccel"]
-        with open('can_data.txt', 'w') as f:  # empty the can_data.txt
+
+        self.filename = 'OpenIMURI-'
+        self.filename += time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()) + '.txt'
+
+        self.fname = './data/'
+        self.fname += self.filename
+        fmode = 'wb'
+        #with open('can_data.txt', 'w') as f:  # empty the can_data.txt
+        with open(self.fname, 'w') as f:  # empty the can_data.txt
             # f.write("time,roll,pitch,xRate,yRate,zRate,xAccel,yAccel,zAccel,lat,long,gps_yaw,gps_pitch,gps_roll,cog,sog"+ "\n")
-            f.write("time,rsvd1,rsvd2,xRate,yRate,zRate,xAccel,yAccel,zAccel,lat,long,gps_yaw,gps_pitch,gps_roll,cog,sog"+ "\n")
+            f.write("time,roll,pitch,wx,wy,wz,lat,long,cog,sog,yaw_gps,pitch_gps,roll_gps,ax,ay,az"+ "\n")
             print('')
         self.msg_queue = Queue()
         self.fw_version_msg_queue = Queue()
@@ -49,6 +66,10 @@ class can_mtlt:
         self.hw_bit_msg_queue = Queue()
         self.sw_bit_msg_queue = Queue()
         self.sensor_status_msg_queue = Queue()
+        self.test_queue = {
+            "timeStamp": 0,
+            "pgn_dict": {}
+            }
         self.pdu_dict = {
             "time_stamp":0,
             "id":0x0000,
@@ -68,10 +89,8 @@ class can_mtlt:
         roll = roll_uint * (1/32768) - 250.0
 
         print('Time: {2:18.6f} Roll: {0:6.2f} Pitch: {1:6.2f}'.format(roll,pitch,msg.timestamp))
-        with open('can_data.txt', 'a') as f:
-            # f.write('Roll: {0:6.2f} Pitch: {1:6.2f}'.format(roll,pitch) + "\n")
-            # f.write('{0:6.2f},{1:6.2f},{2:6.2f},0,0,0,0,0,0,0,0,0,0,0,0,0'.format(msg.timestamp,roll,pitch) + "\n")
-            f.write('{0:6.2f},0,0,0,0,0,0,0,0,0,0,0,0,0,0,0'.format(msg.timestamp,roll,pitch) + "\n")
+
+        return [roll,pitch]
 
     def print_accel(self,msg):   # unit: g
 
@@ -82,12 +101,10 @@ class can_mtlt:
         ay = ay_uint * (0.01) - 320.0
         az = az_uint * (0.01) - 320.0
 
-        print('Time: {3:18.6f} AX  : {0:6.2f} AY   : {1:6.2f} AZ: {2:6.2f}'.format(ax,ay,az,msg.timestamp))
-        with open('can_data.txt', 'a') as f:
-            # f.write('AX  : {0:6.2f} AY   : {1:6.2f} AZ: {2:6.2f}'.format(ax,ay,az) + "\n")
-            f.write('{0:6.2f},0,0,0,0,0,{1:6.2f},{2:6.2f},{3:6.2f},0,0,0,0,0,0,0'.format(msg.timestamp,ax,ay,az) + "\n")
+        # print('Time: {3:18.6f} AX  : {0:6.2f} AY   : {1:6.2f} AZ: {2:6.2f}'.format(ax,ay,az,msg.timestamp))
+        return [ax,ay,az]
 
-    def parse_gps_packet_1(self,dlc,msg):
+    def parse_gps_packet_1(self,dlc):
 
         empty = ""
         long_1 = 0
@@ -106,15 +123,9 @@ class can_mtlt:
         long = (long_1_new * 0.0000001) - 210
         lat = (lat_1_new * 0.0000001) - 210
 
-        print('lat,long')
-        print(long, lat)
+        return [lat,long]
 
-        with open('can_data.txt', 'a') as f:
-            # f.write('WX  : {0:6.2f} WY   : {1:6.2f} WZ: {2:6.2f}'.format(wx,wy,wz) + "\n")
-            f.write('{0:6.2f},0,0,0,0,0,0,0,0,{1:6.9f},{2:6.9f},0,0,0,0,0'.format(msg.timestamp,lat,long) + "\n")
-        return [long,lat]
-
-    def parse_gps_packet_3(self,dlc,msg):
+    def parse_gps_packet_3(self,dlc):
         empty = ""
         yaw_1 = [str(dlc[2]),str(dlc[1])]
         pitch_1 = [str(dlc[4]),str(dlc[3])]
@@ -132,17 +143,9 @@ class can_mtlt:
         pitch = (pitch_1_new * 0.0001) - 3.14159
         roll = (roll_1_new * 0.0001) - 3.14159
 
-        with open('can_data.txt', 'a') as f:
-            print("yaw")
-            print(yaw)
-            print("pitch" + str(pitch))
-            print("roll" + str(roll))
-            # f.write('WX  : {0:6.2f} WY   : {1:6.2f} WZ: {2:6.2f}'.format(wx,wy,wz) + "\n")
-            f.write('{0:6.2f},0,0,0,0,0,0,0,0,0,0,{1:6.4f},{2:6.4f},{3:6.4f},0,0'.format(msg.timestamp,yaw,pitch,roll) + "\n")
-
         return [yaw,pitch,roll]
 
-    def parse_gps_packet_2(self,dlc,msg):
+    def parse_gps_packet_2(self,dlc):
         empty = ""
         cog_1 = [str(dlc[3]),str(dlc[2])]
         sog_1 = [str(dlc[5]),str(dlc[4])]
@@ -156,9 +159,6 @@ class can_mtlt:
         cog = (cog_new * 0.0001) - 3.14
         sog = (cog_new * 0.0001)
 
-        with open('can_data.txt', 'a') as f:
-            # f.write('WX  : {0:6.2f} WY   : {1:6.2f} WZ: {2:6.2f}'.format(wx,wy,wz) + "\n")
-            f.write('{0:6.2f},0,0,0,0,0,0,0,0,0,0,0,0,0,{1:6.2f},{2:6.2f}'.format(msg.timestamp,cog,sog) + "\n")
 
         return [cog,sog]
 
@@ -170,15 +170,16 @@ class can_mtlt:
         wy = wy_uint * (1/128.0) - 250.0
         wz = wz_uint * (1/128.0) - 250.0
 
-        print(msg.timestamp)
-        print('WX  : {0:6.2f} WY   : {1:6.2f} WZ: {2:6.2f}'.format(wx,wy,wz))
-        with open('can_data.txt', 'a') as f:
-            # f.write('WX  : {0:6.2f} WY   : {1:6.2f} WZ: {2:6.2f}'.format(wx,wy,wz) + "\n")
-            f.write('{0:6.2f},0,0,{1:6.2f},{2:6.2f},{3:6.2f},0,0,0,0,0,0,0,0,0,0'.format(msg.timestamp,wx,wy,wz) + "\n")
+        return [wx,wy,wz]
 
     def start_record(self):
         self.thread_put.start()
         self.thread_read.start()
+        sys.stdout.write('Press q and enter to upload file to the azzure.. ')
+        choice = input().lower()
+        if choice == 'q':
+            self.upload_drive_test_azzure()
+            sys.stdout.write('Now press Cntrl + C to terminate')
 
     def read_msg(self):    # print all messages
         while (True):
@@ -187,47 +188,119 @@ class can_mtlt:
             else:
                 msg_read = self.can0.recv()
 
+
             self.get_pdu_list(msg = msg_read)
 
-            if self.pdu_dict["pgn"] == 61481:
-                self.print_slope(msg_read)
-            elif self.pdu_dict["pgn"] == 63489:
-                print("long","lat")
-                self.parse_gps_packet_1(self.pdu_dict["dlc"],msg_read)
-            elif self.pdu_dict["pgn"] == 63490:
-                print("cog sog")
-                self.parse_gps_packet_2(self.pdu_dict["dlc"],msg_read)
-            elif self.pdu_dict["pgn"] == 61721:
-                print("yaw","pitch","roll")
-                self.parse_gps_packet_3(self.pdu_dict["dlc"],msg_read)
-            elif self.pdu_dict["pgn"] == 61482:
-                self.print_rate(msg_read)
-            elif self.pdu_dict["pgn"] == 61485:
-                self.print_accel(msg_read)
-            elif self.pdu_dict["pgn"] == 61183:
-                pass
-                print("Time:", self.pdu_dict["time_stamp"], self.pdu_dict["pgn"], self.pdu_dict["payload"], "------Address_Claiming")     #only print to screen, no write to file
-            elif self.pdu_dict["pgn"] == 65242:
-                self.fw_version_msg_queue.put(self.pdu_dict)
-                print(self.pdu_dict)
-            elif self.pdu_dict["pgn"] == 64965:
-                self.id_msg_queue.put(self.pdu_dict)
-                print(self.pdu_dict)
-            elif self.pdu_dict["pgn"] == 65362:
-                self.hw_bit_msg_queue.put(self.pdu_dict)
-                print(self.pdu_dict)
-            elif self.pdu_dict["pgn"] == 65362:
-                self.hw_bit_msg_queue.put(self.pdu_dict)
-                print(self.pdu_dict)
-            elif self.pdu_dict["pgn"] == 65363:
-                self.sw_bit_msg_queue.put(self.pdu_dict)
-                print(self.pdu_dict)
-            elif self.pdu_dict["pgn"] == 65364:
-                self.sensor_status_msg_queue.put(self.pdu_dict)
-                print(self.pdu_dict)
+            if int(self.pdu_dict["time_stamp"]) != self.test_queue["timeStamp"]:
+                self.write_msg(self.test_queue)
+                self.test_queue["timeStamp"] = int(self.pdu_dict["time_stamp"])
+                self.test_queue["pgn_dict"] = {}
             else:
-                # print( "\n")
-                print(msg_read, "\n")
+                if self.pdu_dict == 63489 or self.pdu_dict == 63490 or self.pdu_dict == 61721:
+                    self.test_queue["pgn_dict"].update({ self.pdu_dict["pgn"] : self.pdu_dict["dlc"] })
+                else:
+                    self.test_queue["pgn_dict"].update({ self.pdu_dict["pgn"] : msg_read })
+
+            # print(self.test_queue)
+
+
+            # if self.pdu_dict["pgn"] == 61481:
+            #     self.print_slope(msg_read)
+            # elif self.pdu_dict["pgn"] == 63489:
+            #     print("long","lat")
+            #     self.parse_gps_packet_1(self.pdu_dict["dlc"],msg_read)
+            # elif self.pdu_dict["pgn"] == 63490:
+            #     print("cog sog")
+            #     self.parse_gps_packet_2(self.pdu_dict["dlc"],msg_read)
+            # elif self.pdu_dict["pgn"] == 61721:
+            #     print("yaw","pitch","roll")
+            #     self.parse_gps_packet_3(self.pdu_dict["dlc"],msg_read)
+            # elif self.pdu_dict["pgn"] == 61482:
+            #     self.print_rate(msg_read)
+            # elif self.pdu_dict["pgn"] == 61485:
+            #     self.print_accel(msg_read)
+            # elif self.pdu_dict["pgn"] == 61183:
+            #     pass
+            #     print("Time:", self.pdu_dict["time_stamp"], self.pdu_dict["pgn"], self.pdu_dict["payload"], "------Address_Claiming")     #only print to screen, no write to file
+            # elif self.pdu_dict["pgn"] == 65242:
+            #     self.fw_version_msg_queue.put(self.pdu_dict)
+            #     print(self.pdu_dict)
+            # elif self.pdu_dict["pgn"] == 64965:
+            #     self.id_msg_queue.put(self.pdu_dict)
+            #     print(self.pdu_dict)
+            # elif self.pdu_dict["pgn"] == 65362:
+            #     self.hw_bit_msg_queue.put(self.pdu_dict)
+            #     print(self.pdu_dict)
+            # elif self.pdu_dict["pgn"] == 65362:
+            #     self.hw_bit_msg_queue.put(self.pdu_dict)
+            #     print(self.pdu_dict)
+            # elif self.pdu_dict["pgn"] == 65363:
+            #     self.sw_bit_msg_queue.put(self.pdu_dict)
+            #     print(self.pdu_dict)
+            # elif self.pdu_dict["pgn"] == 65364:
+            #     self.sensor_status_msg_queue.put(self.pdu_dict)
+            #     print(self.pdu_dict)
+            # else:
+            #     # print( "\n")
+            #     print(msg_read, "\n")
+
+
+    def write_msg(self,queue):
+        self.roll = 0
+        self.pitch = 0
+        self.wx = 0
+        self.wy = 0
+        self.wz = 0
+        self.lat = 0
+        self.long = 0
+        self.cog = 0
+        self.sog = 0
+        self.yaw_gps = 0
+        self.pitch_gps = 0
+        self.roll_gps = 0
+        self.ax = 0
+        self.ay = 0
+        self.az = 0
+
+        if queue["timeStamp"] > 0 :
+
+            for key in queue["pgn_dict"]:
+                if key == 61481:
+                    parsed_val = self.print_slope(queue["pgn_dict"][key])
+                    self.roll = parsed_val[0]
+                    self.pitch = parsed_val[1]
+
+                elif key == 61482:
+                    parsed_val = self.print_rate(queue["pgn_dict"][key])
+                    self.wx = parsed_val[0]
+                    self.wy = parsed_val[1]
+                    self.wz = parsed_val[2]
+
+                elif key == 63489:
+                    parsed_val = self.parse_gps_packet_1(queue["pgn_dict"][key])
+                    self.lat = parsed_val[0]
+                    self.long = parsed_val[1]
+
+                elif key == 63490:
+                    parsed_val = self.parse_gps_packet_2(queue["pgn_dict"][key])
+                    self.cog = parsed_val[0]
+                    self.sog = parsed_val[1]
+
+                elif key == 61721:
+                    parsed_val = self.parse_gps_packet_3(queue["pgn_dict"][key])
+                    self.yaw_gps = parsed_val[0]
+                    self.pitch_gps = parsed_val[1]
+                    self.roll_gps = parsed_val[2]
+
+                elif key == 61485:
+                    parsed_val = self.print_accel(queue["pgn_dict"][key])
+                    self.ax = parsed_val[0]
+                    self.ay = parsed_val[1]
+                    self.az = parsed_val[2]
+
+
+        with open(self.fname, 'a') as f:
+            f.write('{0:6.2f},{1:6.2f},{2:6.2f},{3:6.2f},{4:6.2f},{5:6.2f},{6:6.2f},{7:6.2f},{8:6.2f},{9:6.2f},{10:6.2f},{11:6.2f},{12:6.2f},{13:6.2f},{14:6.2f}'.format(queue["timeStamp"],self.roll,self.pitch,self.wx,self.wy,self.wz,self.lat,self.long,self.cog,self.sog,self.yaw_gps,self.pitch_gps,self.roll_gps,self.ax,self.ay,self.az) + "\n")
 
     def put_msg(self):
         while (True):
@@ -465,10 +538,6 @@ class can_mtlt:
             iTOW = nav_pvt.iTOW
             gSpeed = nav_pvt.gSpeed
 
-            print(iTOW)
-            print(gSpeed)
-
-
             strLat = self.int2Hex(int(lat),0)
             strLong = self.int2Hex(int(lon),0)
 
@@ -515,6 +584,58 @@ class can_mtlt:
             speed= self.int2Hex(int(nav_speed),2)
             packet_speed = [0,0] + speed + [0,0] + [0,0]
             my_can.send_msg(0x18FEE880,packet_speed)
+
+    def upload_drive_test_db(self):
+        name = self.filename.replace(".txt","")
+        data = {"name":name,"reference_primary":self.filename,"reference_sec":"N/A","device_primary":"OpenIMU300RI","device_secondary":"N/A" ,"graphs": False}
+
+
+        db_name = os.getenv("DB_NAME")
+        host = os.getenv("HOST")
+        port = os.getenv("PORT")
+        username = os.getenv("USERNAME")
+        password = os.getenv("PASSWORD")
+        # args = "ssl=true&retrywrites=false&ssl_cert_reqs=CERT_NONE"
+
+        connection_uri = os.getenv("CONNECTION_URI")
+
+        client = MongoClient(connection_uri)
+
+        db = client[db_name]
+        user_collection = db['drive']
+        user_collection.insert_one(data)
+        # for user in user_collection.find():
+        #     print(user)
+        # demo server
+        # host_address='http://40.118.233.18:3000/'
+
+        # local
+        # host_address= 'http://localhost:3000/'
+
+        # production
+        # host_address='https://api.aceinna.com/'
+
+        # url = host_address + "api/Drive/post"
+        # data_json = json.dumps(data)
+        # headers = {'Content-type': 'application/json', 'Authorization' : self.user['access_token'] }
+        # response = requests.post(url, data=data_json, headers=headers)
+        # response = response.json()
+
+    def upload_drive_test_azzure(self):
+        self.upload_drive_test_db()
+        f = open(self.fname, "r")
+        text = f.read()
+
+        self.block_blob_service = BlockBlobService(account_name='navview',
+                                                    # sas_token=self.sas_token, # account_key
+                                                    account_key=os.getenv("ACCOUNT_KEY"), # account_key to be encripted
+                                                    protocol='http')
+
+        self.block_blob_service.create_blob_from_text(container_name='data-test',
+                                                    blob_name=self.filename,
+                                                    text=text,
+                                                    content_settings=ContentSettings(content_type='text/plain'))
+
 
 if __name__ == "__main__":
     my_can = can_mtlt('can0', 'socketcan')

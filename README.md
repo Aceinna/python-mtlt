@@ -39,6 +39,9 @@ sudo /sbin/ip link set can0 up type can bitrate 250000
 sudo ifconfig can0 txqueuelen 1000
 
 ```
+4. Download .env file and place into root folder.
+5. File can be uploaded to cloud by pressing "q" and "enter", anytime in the operation. User may have to terminate the file again after sending it to the cloud as it will be still recording the data on local.
+
 - For GPS through CANBUS
 1. Uncomment my_can.read_gps_2() function and comment the rest and the script by
 ```
