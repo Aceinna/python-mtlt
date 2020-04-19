@@ -21,7 +21,6 @@ import struct
 import requests
 import csv
 import datetime
-import gnsscal
 import serial
 import subprocess, signal
 from ubx import UbxStream
@@ -47,6 +46,17 @@ class can_mtlt:
         self.can0 = can.interface.Bus(channel = chn, bustype = bus_type)  # socketcan_native
         self.rows = []
         self.writer = ""
+
+        # creating folder data
+        path = './data'
+        try:
+            os.mkdir(path)
+        except OSError:
+            print ("Creation of the directory %s failed" % path)
+            print ("%s already exists or storage is full" % path)
+        else:
+            print ("Successfully created the directory %s " % path)
+
 
         fields = ["timeITOW","time","roll","pitch","xRate","yRate","zRate","xAccel","yAccel","zAccel"]
 
@@ -132,11 +142,16 @@ class can_mtlt:
     def start_record(self):
         self.thread_put.start()
         self.thread_read.start()
-        sys.stdout.write('Press q and enter to upload file to the azzure.. ')
+        sys.stdout.write('Press q and enter to upload file to the azzure.. \n')
+        sys.stdout.write('Press Cntrl + C to terminate \n')
         choice = input().lower()
         if choice == 'q':
-            self.upload_drive_test_azzure()
-            sys.stdout.write('Now press Cntrl + C to terminate')
+            try:
+                self.upload_drive_test_azzure()
+                sys.stdout.write('Now press Cntrl + C to terminate')
+            except:
+                sys.stdout.write('Upload unsuccessful! Please check your network connection and start the script again.')    
+
 
     def read_msg(self):    # print all messages
         while (True):

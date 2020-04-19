@@ -39,24 +39,35 @@ sudo /sbin/ip link set can0 up type can bitrate 250000
 sudo ifconfig can0 txqueuelen 1000
 
 ```
-4. Download .env file and place into root folder.
-5. File can be uploaded to cloud by pressing "q" and "enter", anytime in the operation. User may have to terminate the file again after sending it to the cloud as it will be still recording the data on local.
+4. To install all the requried dependencies
+```
+pip install requirement.txt
 
-- For GPS through CANBUS
-1. Uncomment my_can.read_gps_2() function and comment the rest and the script by
 ```
-python3 CAN_MTLT.py
-```
-2. In new terminal tab, uncomment my_can.set_odr(1) and my_can.start_record() to log the data in can_data.txt, after that run
-```
-python3 CAN_MTLT.py
+4. Create .env in the root foler
+    - Using terminal
+    ```
+    touch .env
 
-3. Uncomment  my_can.read_lianshi()  for PGN 65256
-```
-- For GPS through RS-232
-1. Uncomment my_can.set_odr(1) and my_can.start_record() to log the data in can_data.txt, after that run
-```
-python3 CAN_MTLT.py
-```
+    ```
+6. Open the .env file and copy paste the azure credentials
+    - You can use your own account's credential or the one provided by Aceinna.
 
-All the data will be stored in CAN_DATA.txt.
+5. File can be uploaded to cloud by pressing "q" and "enter", anytime in the operation. User may have to terminate the process again after sending it to the cloud as it will be still recording the data on local.
+
+6. To log data into the file
+    ```
+    python3 CAN_MTLT_2.py record
+
+    ```
+6. To send data using canbus, open new terminal
+    ```
+    python3 CAN_MTLT_2.py send
+
+    ```    
+7. Debug steps to confirm if GPS receiver is sending data to the unit.
+    - Install GPSD
+    - Check  /dev/ttyS0  for data
+    - ``` cgps ``` to confirm the incoming data
+    - Please following the instruction in following link for detailed installation
+    - https://medium.com/@DefCon_007/using-a-gps-module-neo-7m-with-raspberry-pi-3-45100bc0bb41
