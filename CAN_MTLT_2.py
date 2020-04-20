@@ -111,8 +111,8 @@ class can_mtlt:
 
     def parse_gps_packet_1(self,dlc):
         lat_long = struct.unpack('<II',dlc.data)
-        long = (lat_long[1] * 0.0000001) - 210
-        lat = (lat_long[0] * 0.0000001) - 210
+        long = (lat_long[1] / 10000000) - 210
+        lat = (lat_long[0] / 10000000) - 210
         return [lat,long]
 
     def parse_gps_packet_3(self,dlc):
