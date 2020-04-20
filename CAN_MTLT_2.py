@@ -620,6 +620,24 @@ class can_mtlt:
                                                     text=text,
                                                     content_settings=ContentSettings(content_type='text/plain'))
 
+    # To be impletmented in future
+
+    # def get_sas_token(self):
+    #     # print('user token',self.user['access_token'])
+    #     try:
+    #         # host_address='http://40.118.233.18:3000/'
+    #         host_address='https://api.aceinna.com/'
+    #         url = host_address+"token/storagesas"
+    #         headers = {'Content-type': 'application/json', 'Authorization':  self.user['access_token']}
+    #         response = requests.post(url, headers=headers)
+    #         rev = response.json()
+    #         if 'token' in rev:
+    #             self.sas_token = rev['token']
+    #         else:
+    #             self.sas_token = ''
+    #             print('Error: Get sas token failed!')
+    #     except Exception as e:
+    #         print('Exception when get_sas_token:', e)
 
 if __name__ == "__main__":
     my_can = can_mtlt()
