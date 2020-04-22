@@ -53,16 +53,30 @@ pip install requirement.txt
 6. Open the .env file and copy paste the azure credentials
     - You can use your own account's credential or the one provided by Aceinna.
 
-5. File can be uploaded to cloud by pressing "q" and "enter", anytime in the operation. User may have to terminate the process again after sending it to the cloud as it will be still recording the data on local.
-
-6. To log data into the file
-    ```
-    python3 CAN_MTLT_2.py record
+5. If user intend to forward GPS data to the unit    
+     ```
+    python3 CAN_MTLT_2.py [port name] [baurate] -f 
 
     ```
-6. To send data using canbus, open new terminal
+    port name = USB port of the GPS receiver(eg. /dev/ttyUSB)
+    baudrate = Baudrate of the unit (eg. 115200)
+    -f  = indicator to forward the data. 
+
+6. To upload the file to the cloud
     ```
-    python3 CAN_MTLT_2.py send
+    python3 CAN_MTLT_2.py -u
+        
+    ```
+    File can be uploaded to cloud by pressing "q" and "enter", anytime in the operation. User may have to terminate the process again after sending it to the cloud as it will be still recording the data on local.
+
+7. To just log data into the file on local
+    ```
+    python3 CAN_MTLT_2.py 
+
+    ```
+8. To foward data and upload the data to cloud in same process, open new terminal
+    ```
+    python3 CAN_MTLT_2.py [port name] [baurate] -f -u
 
     ```    
 7. Debug steps to confirm if GPS receiver is sending data to the unit.

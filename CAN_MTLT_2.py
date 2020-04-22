@@ -21,6 +21,7 @@ import struct
 import requests
 import csv
 import datetime
+import gnsscal
 import serial
 import subprocess, signal
 from ubx import UbxStream
@@ -92,6 +93,8 @@ class can_mtlt:
         }
         self.thread_put = threading.Thread(target=self.put_msg)
         self.thread_read = threading.Thread(target=self.read_msg)
+        self.thread_read_gps = threading.Thread(target=self.read_gps_2)
+
     def print_slope(self,msg):   # unit: degree
         pitch_uint = msg.data[0] + 256 * msg.data[1] +  65536 * msg.data[2]
         roll_uint = msg.data[3] + 256 * msg.data[4] +  65536 * msg.data[5]
@@ -111,8 +114,8 @@ class can_mtlt:
 
     def parse_gps_packet_1(self,dlc):
         lat_long = struct.unpack('<II',dlc.data)
-        long = (lat_long[1] / 10000000) - 210
-        lat = (lat_long[0] / 10000000) - 210
+        long = (lat_long[1] * 0.0000001) - 210
+        lat = (lat_long[0] * 0.0000001) - 210
         return [lat,long]
 
     def parse_gps_packet_3(self,dlc):
@@ -142,15 +145,23 @@ class can_mtlt:
     def start_record(self):
         self.thread_put.start()
         self.thread_read.start()
-        sys.stdout.write('Press q and enter to upload file to the azzure.. \n')
-        sys.stdout.write('Press Cntrl + C to terminate \n')
-        choice = input().lower()
-        if choice == 'q':
-            try:
-                self.upload_drive_test_azzure()
-                sys.stdout.write('Now press Cntrl + C to terminate')
-            except:
-                sys.stdout.write('Upload unsuccessful! Please check your network connection and start the script again.')    
+
+        if '-F' in sys.argv or '-f' in sys.argv:
+            self.thread_read_gps.start()
+        
+        if  '-U' in sys.argv or '-u' in sys.argv:
+            sys.stdout.write('Press q and enter to upload file to the azzure.. \n')
+            sys.stdout.write('Press Cntrl + C to terminate \n')
+            choice = input().lower()
+            if choice == 'q':
+                try:
+                    self.upload_drive_test_azzure()
+                    sys.stdout.write('Now press Cntrl + C to terminate')
+                except:
+                    print('Upload unsuccessful! Please check your network connection and start the script again.')
+        else:
+            print('Recording file on local. \n')   
+            print('Press Cntrl + C to abort. \n')              
 
 
     def read_msg(self):    # print all messages
@@ -499,12 +510,13 @@ class can_mtlt:
         return result   
 
     def read_gps_2(self):
-        port = self.find_ports()
-        if len(port) < 1 :
-            print('No receiver found')
+        # port = self.find_ports()
+        if sys.argv[1].find('USB') == -1:
+            print('Please enter the correct port')
             return
-
-        x = UbxStream(serial.Serial(port=port[0],baudrate=115200,timeout =1))
+                 
+        # x = UbxStream(serial.Serial(port=port[0],baudrate=115200,timeout =1))
+        x = UbxStream(serial.Serial(port=sys.argv[1],baudrate=sys.argv[2],timeout =1))
         while True:
             print('sending data to the unit ...')
             x.enable_message(1,7)
@@ -620,32 +632,14 @@ class can_mtlt:
                                                     text=text,
                                                     content_settings=ContentSettings(content_type='text/plain'))
 
-    # To be impletmented in future
-
-    # def get_sas_token(self):
-    #     # print('user token',self.user['access_token'])
-    #     try:
-    #         # host_address='http://40.118.233.18:3000/'
-    #         host_address='https://api.aceinna.com/'
-    #         url = host_address+"token/storagesas"
-    #         headers = {'Content-type': 'application/json', 'Authorization':  self.user['access_token']}
-    #         response = requests.post(url, headers=headers)
-    #         rev = response.json()
-    #         if 'token' in rev:
-    #             self.sas_token = rev['token']
-    #         else:
-    #             self.sas_token = ''
-    #             print('Error: Get sas token failed!')
-    #     except Exception as e:
-    #         print('Exception when get_sas_token:', e)
 
 if __name__ == "__main__":
     my_can = can_mtlt()
-    my_can.set_odr(10)
-    if sys.argv[1] == 'record':
-        my_can.start_record()
-    elif sys.argv[1] == 'send':
-        my_can.read_gps_2()        
+    # my_can.set_odr(10)
+    # if sys.argv[1] == 'record':
+    #     my_can.start_record()
+    # elif sys.argv[1] == 'send':
+    #     my_can.read_gps_2()        
     
     # get messages
     # my_can.get_fw_version()
@@ -657,7 +651,7 @@ if __name__ == "__main__":
     #set messages
     # my_can.save_configuration()
     # my_can.reset_algorithm()
-    # my_can.set_odr(10)
+    my_can.set_odr(10)
     # my_can.mag_alignment_start()
     # my.set_pkt_type(7)
     # my_can.set_lpf_filter(25,5)
@@ -668,4 +662,4 @@ if __name__ == "__main__":
     # time.sleep(0.5)
 
     #print and save messages of slope, acc, rate
-    # my_can.start_record()
+    my_can.start_record()
