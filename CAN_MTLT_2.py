@@ -16,12 +16,10 @@ import can
 import time
 import threading
 import binascii
-import gps
 import struct
 import requests
 import csv
 import datetime
-import gnsscal
 import serial
 import subprocess, signal
 from ubx import UbxStream
@@ -43,12 +41,14 @@ else:
 #j1939 with extended id
 class can_mtlt:
     def __init__(self, chn = 'can0', bus_type = 'socketcan'):
-        os.system('sudo /sbin/ip link set can0 up type can bitrate 250000')  # run this command first with correct baud rate
+        """define global values and creating txt file """
+        # run this command first with correct baud rate to set open the can port 
+        os.system('sudo /sbin/ip link set can0 up type can bitrate 250000')  
         self.can0 = can.interface.Bus(channel = chn, bustype = bus_type)  # socketcan_native
         self.rows = []
         self.writer = ""
 
-        # creating folder data
+        # creating folder data if does not exists 
         path = './data'
         try:
             os.mkdir(path)
@@ -58,9 +58,7 @@ class can_mtlt:
         else:
             print ("Successfully created the directory %s " % path)
 
-
-        fields = ["timeITOW","time","roll","pitch","xRate","yRate","zRate","xAccel","yAccel","zAccel"]
-
+        #filename with unique idefiener as date
         self.filename = 'OpenIMURI-'
         self.filename += time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()) + '.txt'
 
@@ -91,11 +89,16 @@ class can_mtlt:
             "pgn":0,
             "payload":0
         }
+
+        # Threads to read raw data and forward gps
         self.thread_put = threading.Thread(target=self.put_msg)
         self.thread_read = threading.Thread(target=self.read_msg)
         self.thread_read_gps = threading.Thread(target=self.read_gps_2)
 
-    def print_slope(self,msg):   # unit: degree
+        
+
+    def print_slope(self,msg):
+        """ return roll and pitch for  61481 pgn """   
         pitch_uint = msg.data[0] + 256 * msg.data[1] +  65536 * msg.data[2]
         roll_uint = msg.data[3] + 256 * msg.data[4] +  65536 * msg.data[5]
         pitch = pitch_uint * (1/32768) - 250.0
@@ -105,7 +108,8 @@ class can_mtlt:
 
         return [roll,pitch]
 
-    def print_accel(self,msg):   # unit: g
+    def print_accel(self,msg):   
+        """ return roll and pitch for  61481 pgn """   
         ax_ay_az = struct.unpack('<HHHH', msg.data)
         ax = ax_ay_az[0] * (0.01) - 320.0
         ay = ax_ay_az[1] * (0.01) - 320.0
@@ -113,12 +117,14 @@ class can_mtlt:
         return [ax,ay,az]
 
     def parse_gps_packet_1(self,dlc):
+        """ return lattitude and longitude for  63489 pgn """   
         lat_long = struct.unpack('<II',dlc.data)
         long = (lat_long[1] * 0.0000001) - 210
         lat = (lat_long[0] * 0.0000001) - 210
         return [lat,long]
 
     def parse_gps_packet_3(self,dlc):
+        """ return yaw,roll and pitch for  61721 pgn """   
         sida_yaw_pitch_roll_rsvd = struct.unpack('<BHHHB', dlc.data) 
         yaw = (sida_yaw_pitch_roll_rsvd[1] * 0.0001) - 3.14159
         pitch = (sida_yaw_pitch_roll_rsvd[2] * 0.0001) - 3.14159
@@ -127,6 +133,7 @@ class can_mtlt:
         return [yaw,pitch,roll]
 
     def parse_gps_packet_2(self,dlc):
+        """ return cog and sog for  63490 pgn """   
         rapid_course = struct.unpack('<HHHH', dlc.data) 
 
         cog = (rapid_course[1] * 0.0001) - 3.14
@@ -134,7 +141,8 @@ class can_mtlt:
 
         return [cog,sog]
 
-    def print_rate(self,msg):    # degree per second
+    def print_rate(self,msg):   
+        """ return xrate,yrate,zrate for 61482 pgn """   
         wx_wy_wz = struct.unpack('<HHHH', msg.data)
         wx = wx_wy_wz[0] * (1/128.0) - 250.0
         wy = wx_wy_wz[1] * (1/128.0) - 250.0
@@ -143,6 +151,11 @@ class can_mtlt:
         return [wx,wy,wz]
 
     def start_record(self):
+        """ 
+        start put, read threads
+        uploads file to azure 
+        start forward data thread
+        """
         self.thread_put.start()
         self.thread_read.start()
 
@@ -164,7 +177,8 @@ class can_mtlt:
             print('Press Cntrl + C to abort. \n')              
 
 
-    def read_msg(self):    # print all messages
+    def read_msg(self):
+        """ returns pgn/message detail list """    
         while (True):
             if (self.msg_queue.not_empty):
                 msg_read = self.msg_queue.get()
@@ -229,6 +243,7 @@ class can_mtlt:
 
 
     def write_msg(self,queue):
+        """ logs message into txt file """
         self.roll = 0
         self.pitch = 0
         self.wx = 0
@@ -287,11 +302,13 @@ class can_mtlt:
                 self.pitch_gps, self.roll_gps, self.ax, self.ay, self.az) + "\n")
 
     def put_msg(self):
+        """ reads raw message from can0 and save in the golbal list"""
         while (True):
             msg_save = self.can0.recv()
             self.msg_queue.put(msg_save)
 
     def send_msg(self, id_int, data_list):  # id_int = 0x18FF5500, data_list =[128, 1, 0, 0, 0, 0, 0, 0] set ODR is 100hz
+        """ sends message to the unit using CAN0 interface"""
         send_msg = can.Message(arbitration_id=id_int, data=data_list, is_extended_id=True)
         cmd = 'sudo /sbin/ip -details link show can0'
         res = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
@@ -305,25 +322,33 @@ class can_mtlt:
             res = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
 
     def get_fw_version(self):
+        """ returns firmware version"""
         data = [0, 254, 218]
         my_can.send_msg(0x18EAFF00,data)
         print("fw version:", self.fw_version_msg_queue.get())
         # return(self.fw_version_msg_queue.get())
     def get_id(self):
+        """ returns unit it version"""
         data = [0, 253, 197]
         my_can.send_msg(0x18EAFF01,data)
         print("id:", self.id_msg_queue.get())
+
     def get_hw_status(self):
+        """ returns hardware status"""
         self.start_record()
         data = [0, 255, 82]
         my_can.send_msg(0x18EAFF02,data)
         print("hw bit:", self.hw_bit_msg_queue.get())
+
     def get_sw_status(self):
+        """ returns software status"""
         self.start_record()
         data = [0, 255, 83]
         my_can.send_msg(0x18EAFF03,data)
         print("sw bit:", self.sw_bit_msg_queue.get())
+
     def get_sensor_status(self):
+        """ returns sensor status"""
         self.start_record()
         data = [0, 255, 84]
         my_can.send_msg(0x18EAFF04,data)
@@ -333,20 +358,26 @@ class can_mtlt:
         data = [0, 128]
         my_can.send_msg(0x18FF5100,data)
         print(data)
+
     def reset_algorithm(self):
         data = [0, 128]
         my_can.send_msg(0x18FF5000,data)
         print(data)
+
     def set_odr(self,odr_int):
+        """ sets data rate and returns the set value"""
         data = [128, odr_int]
         my_can.send_msg(0x18FF5500,data)
         print("set odr:", data)
+
     def set_pkt_type(self,type_int):
+        """ sets packet type and returns current packet type """
         data = [128, type_int]
         my_can.send_msg(0x18FF5600,data)
         print(data)
 
     def mag_alignment_start(self):
+        """ returns magnetic alignment status """
         status = self.mag_alignment_calculate(1)
         while status != 13:
             status = self.mag_alignment_status()
@@ -359,6 +390,7 @@ class can_mtlt:
             return status
 
     def mag_alignment_save(self):
+        """ save value into unit for magalignment """
         sys.stdout.write('Accept values? Type y/n: ')
         choice = input().lower()
         if choice  == 'y':
@@ -369,6 +401,7 @@ class can_mtlt:
             return
 
     def mag_alignment_calculate(self,payload,calc = False):
+        """ return current mag alignemnt status from the unit """
         data = [128,payload]
         self.can0.flush_tx_buffer()
         my_can.send_msg(0x18FF5E00,data)
@@ -381,6 +414,7 @@ class can_mtlt:
         return status
 
     def set_lpf_filter(self,rate_int,acc_int):
+        """ returns lpf filter settings """
         data = [128, rate_int, acc_int]
         my_can.send_msg(0x18FF5700,data)
         msg_read = self.can0.recv()
@@ -392,6 +426,7 @@ class can_mtlt:
         print(data)
 
     def set_orientation(self,value_int):
+        """ returns new orientation"""
         value_msb = 0xFF00 & value_int #get the msb value of certain number
         value_msb = value_msb >> 8
         value_lsb = 0x00FF & value_int
@@ -400,6 +435,7 @@ class can_mtlt:
         print(data)
 
     def get_pdu_list(self, msg = None, msg_dict = None):
+        """ return pgn detail list"""
         if msg == None:
             msg = self.can0.recv()
         msg_list = list(str(msg).split(" "))     # the list include: time, id, priority, DLC, data0,data1,...,data7
@@ -420,7 +456,8 @@ class can_mtlt:
             self.pdu_dict["dlc"] = msg_list[7:15]
             self.pdu_dict["pgn"] = (0x00FFFF00 & int(msg_list[3],16)) >> 8
             self.pdu_dict["payload"] = ''.join(msg_list[7:15])
-        
+
+    # convert unix time to GPS time     
     def int2Hex(self,num,n):
         OFFSET = 1 << 32
         MASK = OFFSET - 1
@@ -487,6 +524,7 @@ class can_mtlt:
         return total_sec
 
     def find_ports(self):
+        """ returns connected USB ports """
         print('Looking for port with GPS reciever. Please do not disconnect..')
         # if sys.platform.startswith('win'):
         #     ports = ['COM%s' % (i + 1) for i in range(256)]
@@ -510,12 +548,14 @@ class can_mtlt:
         return result   
 
     def read_gps_2(self):
+        """ returns packet and forwards data for unit"""
         # port = self.find_ports()
         if sys.argv[1].find('USB') == -1:
             print('Please enter the correct port')
             return
-                 
-        # x = UbxStream(serial.Serial(port=port[0],baudrate=115200,timeout =1))
+        
+        ### Use ubx stream to forward data using user defined port and baudrate       
+       
         x = UbxStream(serial.Serial(port=sys.argv[1],baudrate=sys.argv[2],timeout =1))
         while True:
             print('sending data to the unit ...')
@@ -555,6 +595,7 @@ class can_mtlt:
             print("lat:{0} long:{1} strlat:{2} strlong:{3}".format(lat, lon, strLat, strLong))
             my_can.send_msg(0x18FEF380,vehicle_gps)
 
+            # convert hex value to hex  and send data for the PGN    
             strHeading = self.int2Hex(int(headMot),2)
             strHAcc = self.int2Hex(int(hAcc),2)
             strVAcc = self.int2Hex(int(vAcc),2)
@@ -576,8 +617,9 @@ class can_mtlt:
             vehicle_speed = strTOW + strGspeed
             my_can.send_msg(0x18FF6E80,vehicle_speed)
 
+    # This is custom packet for lianshi
     def read_lianshi(self):
-       # pgn 62256
+       
         x = UbxStream(serial.Serial(port="/dev/ttyUSB0",baudrate=9600,timeout =1))
         while True:
             x.enable_message(1,7)
@@ -597,6 +639,7 @@ class can_mtlt:
             my_can.send_msg(0x18FEE880,packet_speed)
 
     def upload_drive_test_db(self):
+        """ uploads data to the database """
         name = self.filename.replace(".txt","")
         data = {"name":name,"reference_primary":self.filename,"reference_sec":"N/A","device_primary":"OpenIMU300RI","device_secondary":"N/A" ,"graphs": False}
 
@@ -618,6 +661,7 @@ class can_mtlt:
     
 
     def upload_drive_test_azzure(self):
+        """ uploads file to the bolbs """
         self.upload_drive_test_db()
         f = open(self.fname, "r")
         text = f.read()
