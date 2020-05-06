@@ -116,9 +116,7 @@ class can_mtlt:
             elif self.pdu_dict["pgn"] == 64965:
                 self.id_msg_queue.put(self.pdu_dict)                
             elif self.pdu_dict["pgn"] == 65362:
-                self.hw_bit_msg_queue.put(self.pdu_dict)                
-            elif self.pdu_dict["pgn"] == 65362:
-                self.hw_bit_msg_queue.put(self.pdu_dict)                
+                self.hw_bit_msg_queue.put(self.pdu_dict)                             
             elif self.pdu_dict["pgn"] == 65363:
                 self.sw_bit_msg_queue.put(self.pdu_dict)                
             elif self.pdu_dict["pgn"] == 65364:
