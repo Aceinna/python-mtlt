@@ -16,8 +16,20 @@ class UbxStream(object):
             self._ubox_synch = '\xb5b'
         else:
             self._version = 3
-            self._ubox_synch = ['b5', '62']
-
+            self._ubox_synch = ['b5', '62'] 
+        # B5 62 01 07 5C 00 30 6C 98 1B E4 07 04 03 08 
+        # B5 62 01 07 5C 00 F0 C6 02 00 DF 07 0A 12 00 03 02 F0 FF FF FF FF 00 00 00 00 00 00 04 00 00 00 00 00 00 
+        # 00 00 00 00 00 00 00 98 BD FF FF FF FF FF FF 00 7C 84 DF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+        # 00 00 00 00 20 4E 00 00 80 A8 12 01 0F 27 00 00 F8 4A 23 00 00 00 00 00 00 00 00 00 85 6A 
+        # B5 62 01 07 5C 00 D8 CA 02 00 DF 07 0A 12 00 03 03 F0 FF FF FF FF 00 00 00 00 00 00 04 00 00 00 00 00 00 
+        # 00 00 00 00 00 00 00 98 BD FF FF FF FF FF FF 00 7C 84 DF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+        # 00 00 00 00 20 4E 00 00 80 A8 12 01 0F 27 00 00 F8 4A 23 00 00 00 00 00 00 00 00 00 72 88 
+        # B5 62 01 07 5C 00 C0 CE 02 00 DF 07 0A 12 00 03 04 F0 FF FF FF FF 00 00 00 00 00 00 04 00 00 00 00 00 00 
+        # 00 00 00 00 00 00 00 98 BD FF FF FF FF FF FF 00 7C 84 DF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+        # 00 00 00 00 20 4E 00 00 80 A8 12 01 0F 27 00 00 F8 4A 23 00 00 00 00 00 00 00 00 00 5F A6 
+        # B5 62 01 07 5C 00 A8 D2 02 00 DF 07 0A 12 00 03 05 F0 FF FF FF FF 00 00 00 00 00 00 04 00 00 00 00 00 00 
+        # 00 00 00 00 00 00 00 98 BD FF FF FF FF FF FF 00 7C 84 DF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+        # 00 00 00 00 20 4E 00 00 80 A8 12 01 0F 27 00 00 F8 4A 23 00 00 00 00 00 00 00 00 00 4C C4 
         if(dev):
             self.dev = dev
         else:
@@ -389,7 +401,8 @@ class UbxMessage(object):
         if(self.__validate_checksum(1, 6, payload, dev)):
             try:
                 payload_cpy = payload_cpy[2:]
-                self.iTOW, self.fTOW, self.week, self.gpsFix, self.flags, self.ecefX, self.ecefY, self.ecefZ, self.pAcc, self.ecefVX, self.ecefVY, self.ecefVZ, self.sAcc, self.pDOP, reserved1, self.numSV, reserved21, reserved22, reserved23, reserved24 = struct.unpack('=LlhBB3lL3lLH6B', payload_cpy)
+                self.iTOW, self.fTOW, self.week, self.gpsFix, self.flags, self.ecefX, self.ecefY, self.ecefZ, self.pAcc, self.ecefVX, self.ecefVY, self.ecefVZ, 
+                self.sAcc, self.pDOP, reserved1, self.numSV, reserved21, reserved22, reserved23, reserved24 = struct.unpack('=LlhBB3lL3lLH6B', payload_cpy)
                 self.ubx_class = '01'
                 self.ubx_id = '06'
 
@@ -415,7 +428,10 @@ class UbxMessage(object):
         if(self.__validate_checksum(1, 7, payload, dev)):
             try:
                 payload_cpy = payload[2:]
-                self.iTOW, self.year, self.month, self.day, self.hour, self.minute, self.second, self.valid, self.tAcc, self.nano, self.fixType, self.flags, self.flags2, self.numSV, self.lon, self.lat, self.height, self.hMSL, self.hAcc, self.vAcc, self.velN, self.velE, self.velD, self.gSpeed, self.headMot, self.sAcc, self.headAcc, self.pDOP, reserved11, reserved12, reserved13, reserved14, reserved15, reserved16,  self.headVeh, self.magDec, self.magAcc = struct.unpack('=LH5BBLlB2BB4l2L5lLLH6BlhH', payload_cpy)
+                self.iTOW, self.year, self.month, self.day, self.hour, self.minute, self.second, self.valid, self.tAcc, self.nano, 
+                self.fixType, self.flags, self.flags2, self.numSV, self.lon, self.lat, self.height, self.hMSL, self.hAcc, self.vAcc, 
+                self.velN, self.velE, self.velD, self.gSpeed, self.headMot, self.sAcc, self.headAcc, self.pDOP, reserved11, reserved12, 
+                reserved13, reserved14, reserved15, reserved16,  self.headVeh, self.magDec, self.magAcc = struct.unpack('=LH5BBLlB2BB4l2L5lLLH6BlhH', payload_cpy)
 
                 self.ubx_class = '01'
                 self.ubx_id = '07'

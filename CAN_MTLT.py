@@ -542,7 +542,7 @@ class can_mtlt:
             strLong = self.int2Hex(int(lon),0)
 
             vehicle_gps = strLat + strLong
-            my_can.send_msg(0x18FEF380,vehicle_gps)
+            my_can.send_msg(0x18FEF380,vehicle_gps)#65267
 
             strHeading = self.int2Hex(int(headMot),2)
             strHAcc = self.int2Hex(int(hAcc),2)
@@ -550,7 +550,7 @@ class can_mtlt:
             strPdop = self.int2Hex(pDop,2)
 
             vehicle_acc = strHAcc + strVAcc + strPdop +strHeading
-            my_can.send_msg(0x18FF7080,vehicle_acc)
+            my_can.send_msg(0x18FF7080,vehicle_acc)#65392
 
 
             strAlt = self.int2Hex(height,0)
@@ -558,12 +558,12 @@ class can_mtlt:
             strAlt.insert(0,valid)
             strAlt.insert(0,flags)
             strAlt.insert(0,numSV)
-            my_can.send_msg(0x18FF6F80,strAlt)
+            my_can.send_msg(0x18FF6F80,strAlt) #65391
 
             strTOW = self.int2Hex(iTOW,0)
             strGspeed = self.int2Hex(gSpeed,0)
             vehicle_speed = strTOW + strGspeed
-            my_can.send_msg(0x18FF6E80,vehicle_speed)
+            my_can.send_msg(0x18FF6E80,vehicle_speed) #65390
 
     def read_lianshi(self):
        # pgn 62256
