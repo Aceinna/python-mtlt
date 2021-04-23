@@ -620,7 +620,11 @@ class can_mtlt:
     # This is custom packet for lianshi
     def read_lianshi(self):
        
+<<<<<<< HEAD
         x = UbxStream(serial.Serial(port="/dev/ttyUSB0",baudrate=115200,timeout =1))
+=======
+        x = UbxStream(serial.Serial(port="/dev/ttyUSB0",baudrate=9600,timeout =1))
+>>>>>>> 1368039a5b258cf9cf968c37cbedb6ca14444fef
         while True:
             x.enable_message(1,7)
             time.sleep(0.3)
@@ -706,4 +710,8 @@ if __name__ == "__main__":
     # time.sleep(0.5)
 
     #print and save messages of slope, acc, rate
+<<<<<<< HEAD
     my_can.start_record()
+=======
+    my_can.start_record()
+>>>>>>> 1368039a5b258cf9cf968c37cbedb6ca14444fef
